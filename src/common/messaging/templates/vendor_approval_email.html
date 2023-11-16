@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Approval Email</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    </head>
+    <body style="margin: 0; padding: 0; width: 100%; height: 100%;">
+        <div style="border: 1px solid rgba(0, 120, 185, 1); border-radius: 10px; width: 800px; margin: auto; text-align: left; padding: 20px;">
+            <h1 style="color: rgba(0, 120, 185, 1); width: 100%; text-align: center; display: block;">Your application has been approved</h1>
+            <h5 style="color: rgba(0, 120, 185, 1); font-weight:normal; font-size: 18px;">Hi {name}</h5>
+
+            <p style="margin-top: 20px; margin-bottom: 20px;">
+                We are so glad to tell you that your application has been approved successfully! On behalf of my team members and me, we warmly welcome you again to the Payculia family!
+            </p>
+
+            <h5 style="color: rgba(0, 120, 185, 1); font-weight:normal; font-size: 18px;">Api Keys</h5>
+
+            <p style="margin-top: 20px; margin-bottom: 20px;">
+                This section describes what API keys are and how to use them.
+                <br>
+                <br>
+                Payculia authenticates your API requests using your account’s API key. If you do not include your key when making an API request or use one that is incorrect or outdated, Payculia will return an error.
+                <br>
+                <br>
+                We use one type of API key on Payculia: <b style="background-color: #eee; padding: 10px;">Secret Key</b>
+                <br>
+            </p>
+
+            <table style="margin-top: 20px;">
+                <thead style="background-color: rgba(0, 120, 185, 1); color: #fff;">
+                    <tr>
+                        <th>Credential</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <tr>
+                        <td>Secret Key</td>
+                        <td>This should be kept confidential and only stored on your own servers. Your account’s secret API key can perform any API request to Payculia without restriction. The secret key is used to authorize all your API calls on Payculia.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h5 style="color: rgba(0, 120, 185, 1); font-weight:normal; font-size: 18px;">How to Obtain your API Key?</h5>
+            <p>Your API keys are available on your Payculia Dashboard. Or you can find it below:</p>
+            <ul style="list-style: none; padding: 0; margin: 0; ">
+                <li style="color: rgba(0, 120, 185, 1); font-weight: bold; text-align: center;">{secretKey}</li>
+            </ul>
+
+            <h5 style="color: rgba(0, 120, 185, 1); font-weight:normal; font-size: 18px; margin-top: 20px;">Authentication</h5>
+            <p style="margin-top: 20px; margin-bottom: 20px;">
+                Payculia uses OAuth 2.0 as the basic security protocol. To access payculia endpoints you'd need to use the secret key generated for you to access other endpoints.
+            </p>
+            <p style="margin-top: 20px; margin-bottom: 20px;">
+                With Payculia, you can authorize your API calls by your secret key. You send HTTP requests with the Authorization header that contains the word Basic followed by a space and the secret key as seen below.
+                <br>
+                Authorization: Basic Your-secret-key
+            </p>
+
+            <p style="display:block; width: 100%; text-align: center;">Thank you for choosing Payculia HMS Best Regards </p>
+        </div>
+    </body>
+</html>
