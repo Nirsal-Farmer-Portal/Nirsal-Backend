@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { CommoditiesModule } from './modules/commodities/commodities.module';
+import { ConfigModule } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
+import { ModulesExport } from './modules/module.export';
 
 @Module({
   imports: [
-    CommoditiesModule
+    ConfigModule.forRoot(),
+    MongooseModule.forRoot(process.env.MONGODB_URL),
+    ...ModulesExport,
   ],
   controllers: [AppController],
   providers: [AppService],
