@@ -3,160 +3,226 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Account } from 'src/entities/account.entity';
 import { RegistrationDto } from '../dtos/registration.dto';
-import { DuplicateRecordFound, InvalidValidation, RecordNotFound } from 'exceptions/custom.exceptions';
+import {
+  DuplicateRecordFound,
+  InvalidValidation,
+  RecordNotFound,
+} from 'exceptions/custom.exceptions';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from '../dtos/login.dto';
-import {sign} from 'jsonwebtoken';
+import { sign } from 'jsonwebtoken';
 import { Authentication } from 'src/entities/authentication.entity';
+import { ObjectId } from 'mongodb';
 
 @Injectable()
 export class AccountService {
+  constructor(
+    @InjectModel(Account.name)
+    private readonly accountModel: Model<Account>,
+    @InjectModel(Authentication.name)
+    private readonly authenticationModel: Model<Authentication>,
+  ) {}
 
-    constructor(
-        @InjectModel(Account.name)
-        private readonly accountModel : Model<Account>,
-        @InjectModel(Authentication.name)
-        private readonly authenticationModel : Model<Authentication>
-    ){}
+  /**
+   * @member checkIfPhoneNumberExists
+   * @returns
+   *
+   * This checks if a phone number exists.
+   */
+  async checkIfPhoneNumberExists(phone: string) {
+    const account = await this.accountModel.findOne({ phone: phone });
 
-    /**
-     * @member checkIfPhoneNumberExists
-     * @returns 
-     * 
-     * This checks if a phone number exists.
-     */
-    async checkIfPhoneNumberExists(phone : string)
-    {
-        const account = await this.accountModel.findOne({phone : phone});
+    // all good
+    return {
+      exists: account ? true : false,
+      account,
+    };
+  }
 
-        // all good
-        return {
-            exists : (account) ? true : false, 
-            account
-        }
+  /**
+   * @member checkIfEmailExists
+   * @param email
+   *
+   * This checks if an email exists.
+   */
+  async checkIfEmailExists(email: string) {
+    const account = await this.accountModel.findOne({ email: email });
+
+    // all good
+    return {
+      exists: account ? true : false,
+      account,
+    };
+  }
+
+  /**
+   * @member createAccount
+   * @param account
+   *
+   * This creates a user account
+   */
+  async createAccount(account: RegistrationDto) {
+    // check phone
+    const checkPhone = await this.checkIfPhoneNumberExists(account.phone);
+
+    if (checkPhone.exists)
+      throw new DuplicateRecordFound('Phone number already in use');
+
+    // check email
+    if (account.email != '') {
+      const checkEmail = await this.checkIfPhoneNumberExists(account.email);
+
+      if (checkEmail.exists)
+        throw new DuplicateRecordFound('Email address already in use');
     }
 
-    /**
-     * @member checkIfEmailExists
-     * @param email 
-     * 
-     * This checks if an email exists.
-     */
-    async checkIfEmailExists(email : string)
-    {
-        const account = await this.accountModel.findOne({email : email});
+    // check password
+    if (account.password !== account.password_again)
+      throw new InvalidValidation('Password does not match');
 
-        // all good
-        return {
-            exists : (account) ? true : false, 
-            account
-        }
-    }
+    // get password hash
+    const { hashed } = await this.createPassword(account.password);
 
-    /**
-     * @member createAccount
-     * @param account 
-     * 
-     * This creates a user account
-     */
-    async createAccount(account : RegistrationDto)
-    {
-        // check phone
-        const checkPhone = await this.checkIfPhoneNumberExists(account.phone);
+    // update password with hash
+    account.password = hashed;
 
-        if (checkPhone.exists) throw new DuplicateRecordFound("Phone number already in use");
+    // create account
+    const create = await this.accountModel.create(account);
 
-        // check email
-        if (account.email != "") 
-        {
-            const checkEmail = await this.checkIfPhoneNumberExists(account.email);
+    // all good
+    return create ? true : false;
+  }
 
-            if (checkEmail.exists) throw new DuplicateRecordFound("Email address already in use");
-        }
+  /**
+   * @member createPassword
+   * @param password
+   * @returns
+   */
+  async createPassword(password: string) {
+    // create a password salt
+    const salt = await bcrypt.genSalt(6);
 
-        // check password
-        if (account.password !== account.password_again) throw new InvalidValidation("Password does not match");
+    // encrypt password
+    const hashed = await bcrypt.hash(password, salt);
 
-        // get password hash
-        const {hashed} = await this.createPassword(account.password);
+    return { hashed, salt };
+  }
 
-        // update password with hash
-        account.password = hashed;
+  /**
+   * @member authenticateAccount
+   * @param data
+   */
+  async authenticateAccount(data: LoginDto) {
+    const account = await this.accountModel.findOne({
+      $or: [{ phone: data.username }, { email: data.username }],
+    });
 
-        // create account
-        const create = await this.accountModel.create(account);
+    // account exists?
+    if (!account) throw new RecordNotFound('Incorrect login credentials');
 
-        // all good
-        return create ? true : false;
-    }
+    // compare password
+    const validPassword = await bcrypt.compare(data.password, account.password);
 
-    /**
-     * @member createPassword
-     * @param password 
-     * @returns 
-     */
-    async createPassword(password : string)
-    {
-        // create a password salt
-        const salt = await bcrypt.genSalt(6);
+    // not good
+    if (!validPassword)
+      throw new InvalidValidation('Incorrect login credentials');
 
-        // encrypt password
-        const hashed = await bcrypt.hash(password, salt);
+    // get user token
+    const token = sign(
+      {
+        email: account.email,
+        phone: account.phone,
+      },
+      'secretKey',
+      { expiresIn: '12h' },
+    );
 
-        return {hashed, salt};
-    }
+    // update authentication table
+    await this.authenticationModel.updateOne(
+      { account: account._id },
+      {
+        account: account._id,
+        token,
+      },
+      {
+        upsert: true,
+      },
+    );
 
-    /**
-     * @member authenticateAccount
-     * @param data 
-     */
-    async authenticateAccount(data : LoginDto)
-    {
-        const account = await this.accountModel.findOne({
-            $or : [
-                {phone : data.username},
-                {email : data.username}
-            ]
-        });
+    // all good
+    return {
+      token,
+      account: {
+        id: account._id,
+        phone: account.phone,
+        email: account.email,
+        firstname: account.firstname,
+        lastname: account.lastname,
+        account_type: account.account_type,
+        address: account.address,
+        category_type: account.type_category,
+        verified: account.is_verified,
+        address_data: account.address_data,
+      },
+    };
+  }
 
-        // account exists?
-        if (!account) throw new RecordNotFound("Incorrect login credentials");
+  /**
+   * @member unverifiedAccounts
+   * @returns
+   */
+  async unverifiedAccounts() {
+    const accounts = await this.accountModel
+      .find({
+        is_verified: false,
+        account_type: { $ne: 'field-officer' },
+      })
+      .sort({ _id: -1 });
 
-        // compare password
-        const validPassword = await bcrypt.compare(data.password, account.password);
+    return accounts;
+  }
 
-        // not good
-        if (!validPassword) throw new InvalidValidation("Incorrect login credentials");
+  async registeredAccounts() {
+    const accounts = await this.accountModel
+      .find({
+        account_type: { $ne: 'field-officer' },
+      })
+      .sort({ is_verified: 1 });
 
-        // get user token
-        const token = sign({
-            email : account.email,
-            phone : account.phone
-        }, 'secretKey', { expiresIn: '12h' });
+    return accounts;
+  }
 
-        // update authentication table
-        await this.authenticationModel.updateOne({account : account._id}, {
-            account : account._id,
-            token
-        }, {
-            upsert : true
-        });
+  /**
+   * @member verifyAccount
+   * @param accountId
+   * @returns
+   */
+  async verifyAccount(accountId: string) {
+    const filter = { _id: new ObjectId(accountId) };
 
-        // all good
-        return {
-            token,
-            account : {
-                id : account._id,
-                phone : account.phone,
-                email : account.email,
-                firstname : account.firstname,
-                lastname : account.lastname,
-                account_type : account.account_type,
-                address : account.address,
-                category_type : account.type_category,
-                verified : account.is_verified,
-                address_data : account.address_data
-            }
-        }
-    }   
+    const account = await this.accountModel.findOne(filter);
+
+    if (!account) throw new RecordNotFound('Account does not exists.');
+
+    await this.accountModel.updateOne(filter, {
+      is_verified: true,
+    });
+
+    return await this.registeredAccounts();
+  }
+
+  /**
+   * @member verifiedAccounts
+   * @returns
+   */
+  async verifiedAccounts() {
+    const accounts = await this.accountModel
+      .find({
+        is_verified: true,
+        account_type: { $ne: 'field-officer' },
+      })
+      .sort({ _id: -1 });
+
+    return accounts;
+  }
 }
